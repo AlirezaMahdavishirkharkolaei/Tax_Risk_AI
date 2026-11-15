@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaxRiskScan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a working tool. Controls bar on top, summary tiles, then charts, ranked table,
+   findings with legal basis, Pillar Two, method. Single column, max 1180px. */
+:root {
+  --paper: #f5f6f4;
+  --panel: #ffffff;
+  --ink: #17212b;
+  --muted: #5b6670;
+  --line: #dfe3e0;
+  --accent: #1d5fa8;
+  --accent-soft: #e4edf7;
+  --high: #b83232;
+  --high-soft: #f8e4e2;
+  --med: #8a5a00;
+  --med-soft: #fbf0d6;
+  --low: #23743a;
+  --low-soft: #e2f1e5;
+  --plate: #fcfcfb;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12171c; --panel: #1a2128; --ink: #e8ecee; --muted: #a2adb5; --line: #2c363f;
+    --accent: #6ea8ec; --accent-soft: #1d2f44; --high: #f08a80; --high-soft: #3a1f1d;
+    --med: #f0c060; --med-soft: #3a2f16; --low: #7fcf92; --low-soft: #1b3324; --plate: #fcfcfb;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12171c; --panel: #1a2128; --ink: #e8ecee; --muted: #a2adb5; --line: #2c363f;
+  --accent: #6ea8ec; --accent-soft: #1d2f44; --high: #f08a80; --high-soft: #3a1f1d;
+  --med: #f0c060; --med-soft: #3a2f16; --low: #7fcf92; --low-soft: #1b3324; --plate: #fcfcfb;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; display: grid; gap: 22px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 34px; line-height: 1.1; }
+h2 { font-size: 22px; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+.sub { color: var(--muted); max-width: 70ch; }
+.num, td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+.status { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; background: var(--panel); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--med); }
+.status.ready .dot { background: var(--low); }
+.status.error .dot { background: var(--high); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: end; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+select, button, .filebtn { font: 500 14px var(--body); border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); padding: 8px 12px; min-height: 38px; }
+button, .filebtn { cursor: pointer; }
+button:hover, .filebtn:hover { border-color: var(--accent); }
+button.primary, .filebtn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop { flex: 1 1 280px; border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px 14px;
+  color: var(--muted); font-size: 13px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.source { font-size: 13px; color: var(--muted); }
+.source b { color: var(--ink); font-weight: 600; }
+.msg { font-size: 14px; padding: 10px 14px; border-radius: 8px; background: var(--high-soft); color: var(--high); }
+.msg[hidden], .quality[hidden] { display: none; }
+.quality { border: 1px solid var(--med); background: var(--med-soft); border-radius: 10px; padding: 12px 16px; font-size: 14px; }
+.quality ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.kpi { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.kpi .v { font: 600 24px var(--mono); }
+.kpi .k { font-size: 13px; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  border-left: 4px solid var(--line); display: grid; gap: 2px; }
+.tile .v { font: 600 28px var(--mono); }
+.tile .k { font-size: 13px; color: var(--muted); }
+.tile.high { border-left-color: var(--high); } .tile.med { border-left-color: var(--med); }
+.tile.low { border-left-color: var(--low); } .tile.acc { border-left-color: var(--accent); }
+.charts { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.plate img { max-width: 980px; margin: 0 auto; }
+.r-charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+.plate { background: var(--plate); border-radius: 10px; padding: 8px; }
+.plate img { display: block; width: 100%; height: auto; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+th.num, td.num { text-align: right; }
+th.num { font-family: var(--body); }
+.pill { display: inline-flex; gap: 5px; align-items: center; font-size: 12.5px; font-weight: 600;
+  border-radius: 999px; padding: 2px 9px; }
+.pill.High { color: var(--high); background: var(--high-soft); }
+.pill.Medium { color: var(--med); background: var(--med-soft); }
+.pill.Low { color: var(--low); background: var(--low-soft); }
+.bar { display: inline-block; width: 70px; height: 6px; border-radius: 3px; background: var(--line);
+  vertical-align: middle; margin-right: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.findings { display: grid; gap: 12px; }
+.finding { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; border-left: 4px solid var(--line); }
+.finding.High { border-left-color: var(--high); } .finding.Medium { border-left-color: var(--med); }
+.finding header { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.finding .meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.finding ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 8px; }
+.finding li b { font-weight: 600; }
+.rec { color: var(--muted); }
+.law { font-size: 12.5px; color: var(--muted); }
+.law a { color: var(--muted); }
+.ok { color: var(--low); font-weight: 600; } .no { color: var(--high); font-weight: 600; } .unk { color: var(--med); font-weight: 600; }
+.note { font-size: 12.5px; color: var(--muted); }
+.section-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.dl { display: flex; flex-wrap: wrap; gap: 8px; }
+.method { display: grid; gap: 10px; max-width: 80ch; }
+.disclaimer { font-size: 13px; color: var(--muted); border-left: 3px solid var(--line); padding: 6px 12px; }
+.stack { display: grid; gap: 12px; }
+@media (prefers-reduced-motion: no-preference) { .tile, .panel { transition: border-color .15s; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="stack">
+      <h1>TaxRiskScan</h1>
+      <p class="sub">Screen Country-by-Country Reporting data for low taxation, profit shifting and Pillar Two
+        exposure. Upload a CSV or an OECD CbC XML file; everything runs in your browser, nothing is uploaded to a server.</p>
+    </div>
+    <span class="status" id="status" role="status"><span class="dot"></span><span id="status-text">Loading the Python engine…</span></span>
+  </header>
+
+  <section class="panel controls" aria-label="Data and settings">
+    <div class="drop" id="drop">
+      <label class="filebtn primary" for="file">Upload CSV or XML</label>
+      <input type="file" id="file" accept=".csv,.xml,text/csv,text/xml,application/xml" disabled>
+      <span>or drop a file here</span>
+    </div>
+    <div class="field"><label for="year">Fiscal year (Pillar Two)</label>
+      <select id="year"><option>2024</option><option>2025</option><option selected>2026</option><option>2027</option><option>2028</option></select></div>
+    <div class="field"><label for="training">Model trained on</label>
+      <select id="training"><option value="real" selected>Real public CbCRs</option><option value="synthetic">Synthetic demo data</option></select></div>
+    <div class="field"><span>Examples</span>
+      <div class="dl"><button id="sample-csv" disabled>Sample CSV</button><button id="sample-xml" disabled>Sample XML</button><button id="template">CSV template</button></div></div>
+  </section>
+  <p class="source" id="source">Showing: <b>bundled sample</b> · three fictional multinational groups, fiscal year 2026</p>
+  <p class="msg" id="error" hidden></p>
+  <section class="quality" id="quality" hidden aria-label="Data quality"></section>
+
+  <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+  <section class="panel stack">
+    <div class="section-head"><h2>Risk by jurisdiction</h2><span class="note">Darker cells = stronger indicator. Overall score 0–100.</span></div>
+    <div class="charts">
+      <div class="plate"><img id="heatmap" alt="Heatmap of risk indicators per jurisdiction"></div>
+      <div class="plate"><img id="scores" alt="Bar chart of the overall risk score per jurisdiction"></div>
+    </div>
+  </section>
+
+  <section class="panel stack">
+    <div class="section-head"><h2>Ranked entities</h2>
+      <div class="dl"><button id="dl-summary">Download summary CSV</button><button id="dl-report" class="primary">Download audit report</button></div></div>
+    <div class="wrap"><table id="table"></table></div>
+    <p class="note">OECD ETR: aggregate effective tax rate of profitable multinationals in that jurisdiction, OECD CbCR statistics 2016. Context only.</p>
+  </section>
+
+  <section class="panel stack">
+    <h2>Findings, review steps and legal basis</h2>
+    <div class="findings" id="findings"></div>
+  </section>
+
+  <section class="panel stack">
+    <div class="section-head"><h2 id="p2-title">Pillar Two screening</h2><button id="dl-p2">Download Pillar Two CSV</button></div>
+    <div class="wrap"><table id="p2-totals"></table></div>
+    <div class="wrap"><table id="p2"></table></div>
+    <p class="note">Transitional CbCR Safe Harbour: de minimis (revenue &lt; €10m and profit &lt; €1m), simplified ETR (≥ 15% for 2023–24, 16% for 2025, 17% for 2026–27), routine profits (profit ≤ substance-based income exclusion). Estimated top-up = (15% − ETR) × (profit − SBIE). ? = needs payroll costs and tangible assets; ≤ = upper bound. A screening estimate from CbCR figures, not a GloBE computation. Amounts assumed in EUR.</p>
+  </section>
+
+  <section class="panel stack" id="research" aria-label="Research">
+    <div class="section-head"><h2>Research: profit shifting in public CbCRs</h2><button id="dl-brief">Download research brief</button></div>
+    <p class="sub">What the training data itself shows: country-by-country reports published by multinationals, collected by the EU Tax Observatory.</p>
+    <div class="kpis" id="r-kpis"></div>
+    <div class="charts r-charts">
+      <div class="plate"><img id="r-shares" alt="Share of profit, employees and tax booked in tax havens by year"></div>
+      <div class="plate"><img id="r-etr" alt="Effective tax rates in tax havens and other jurisdictions by year"></div>
+      <div class="plate"><img id="r-top" alt="Tax havens attracting the most profit"></div>
+    </div>
+    <p class="note" id="r-note"></p>
+  </section>
+
+  <section class="panel method">
+    <h2>Method and data</h2>
+    <p id="method-model"></p>
+    <p>Risk score = 50% rule-based indicators + 30% logistic-regression probability + 20% k-means anomaly score. High ≥ 60, Medium ≥ 35. The model never sees the jurisdiction's name; it learns the financial profile of multinationals' tax-haven affiliates, so it can flag that profile anywhere.</p>
+    <p>Data: EU Tax Observatory, Public Country-by-Country Reports database (Aliprandi, Borders, Gabriel &amp; von Zedlitz, 2022; non-commercial use with citation) · OECD Corporate Tax Statistics, aggregated CbCR 2016 · EU list of non-cooperative jurisdictions, Annex I as of 9 October 2026.</p>
+    <p><b>Input columns:</b> <span class="num">jurisdiction, revenue, profit_before_tax, tax_paid</span> or <span class="num">tax_accrued, employees</span>; optional <span class="num">group, year, tangible_assets, payroll_costs</span>.</p>
+    <p>Source code: <a href="https://github.com/AlirezaMahdavishirkharkolaei/Tax_Risk_AI">github.com/AlirezaMahdavishirkharkolaei/Tax_Risk_AI</a></p>
+    <p class="disclaimer">TaxRiskScan produces risk indicators, not legal or tax conclusions. A high score means "look closer", not "non-compliant": low effective tax rates and high profits can have legitimate explanations. Every flag needs human review.</p>
+  </section>
+</main>
+
+<script>window.__CV_AUC__ = null; /*CV_AUC*/</script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (x) => (x === null || x === undefined) ? "–" : (x * 100).toFixed(1) + "%";
+const money = (x) => (x === null || x === undefined) ? "–" : Math.round(x).toLocaleString("en-US");
+const ICON = { High: "▲", Medium: "●", Low: "▼" };
+const SAMPLE_AUC = window.__CV_AUC__ || null;
+
+let current = null;
+let py = null;
+let lastInput = { path: "/app/sample_cbcr.csv", label: "bundled sample · three fictional multinational groups" };
+
+function setStatus(text, state) {
+  $("status-text").textContent = text;
+  $("status").className = "status" + (state ? " " + state : "");
+}
+function showError(text) { const e = $("error"); e.textContent = text; e.hidden = !text; }
+
+function render(d) {
+  current = d;
+  const p2 = d.pillar2;
+  const applies = p2.filter((r) => r.safe_harbour === "Applies").length;
+  const topup = p2.reduce((a, r) => a + (r.estimated_topup_tax || 0), 0);
+  $("tiles").innerHTML = [
+    ["high", d.counts.High, "▲ High risk"],
+    ["med", d.counts.Medium, "● Medium risk"],
+    ["low", d.counts.Low, "▼ Low risk"],
+    ["acc", `${applies}/${p2.length}`, "Safe harbour applies"],
+    ["acc", money(topup), "Estimated top-up tax"],
+  ].map(([c, v, k]) => `<div class="tile ${c}"><span class="v">${esc(v)}</span><span class="k">${esc(k)}</span></div>`).join("");
+
+  const q = d.issues || [];
+  $("quality").hidden = !q.length;
+  $("quality").innerHTML = q.length ? `<b>Data quality</b><ul>${q.map((i) => `<li>${i.level === "warning" ? "<b>Warning:</b> " : ""}${esc(i.message)}${i.rows && i.rows.length ? ` <span class="note">(CSV rows ${i.rows.join(", ")})</span>` : ""}</li>`).join("")}</ul>` : "";
+  $("heatmap").src = d.heatmap;
+  $("scores").src = d.scores;
+
+  const multi = d.groups > 1;
+  $("table").innerHTML = `<thead><tr>${multi ? "<th>Group</th>" : ""}<th>Jurisdiction</th><th>Score</th><th>Level</th>
+    <th class="num">ETR</th><th class="num">OECD ETR</th><th class="num">Profit / employee</th>
+    <th class="num">Profit share</th><th class="num">Activity share</th><th class="num">ML prob.</th><th class="num">Anomaly</th></tr></thead><tbody>` +
+    d.entities.map((e) => `<tr>${multi ? `<td>${esc(e.group)}</td>` : ""}<td>${esc(e.jurisdiction)}</td>
+      <td class="num"><span class="bar"><i style="width:${Math.min(100, e.score)}%"></i></span>${Math.round(e.score)}</td>
+      <td><span class="pill ${e.level}">${ICON[e.level]} ${e.level}</span></td>
+      <td class="num">${pct(e.etr)}</td><td class="num">${pct(e.oecd_etr)}</td><td class="num">${money(e.ppe)}</td>
+      <td class="num">${pct(e.profit_share)}</td><td class="num">${pct(e.activity_share)}</td>
+      <td class="num">${e.ml.toFixed(2)}</td><td class="num">${e.anomaly.toFixed(2)}</td></tr>`).join("") + "</tbody>";
+
+  const flagged = d.entities.filter((e) => e.level !== "Low");
+  $("findings").innerHTML = flagged.length ? flagged.map((e) => `<article class="finding ${e.level}">
+      <header><h3>${esc(e.jurisdiction)}</h3><span class="note">${esc(e.group)}</span>
+        <span class="pill ${e.level}">${ICON[e.level]} ${e.level} · ${Math.round(e.score)}</span></header>
+      <p class="meta">ML probability ${e.ml.toFixed(2)} · anomaly ${e.anomaly.toFixed(2)}${e.drivers ? " · model drivers: " + esc(e.drivers) : ""}</p>
+      <ul>${e.findings.length ? e.findings.map((f) => `<li><b>${esc(f.reason)}</b><br><span class="rec">→ ${esc(f.recommendation)}</span>
+        ${f.law.length ? `<br><span class="law">§ ${f.law.map((l) => l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>` : esc(l.label)).join(" · ")}</span>` : ""}</li>`).join("")
+        : "<li>No individual rule fired; the score comes from the ML signals. Review manually.</li>"}</ul></article>`).join("")
+    : `<p class="note">No medium or high-risk jurisdictions found.</p>`;
+
+  $("p2-title").textContent = `Pillar Two screening · fiscal year ${d.fiscal_year}`;
+  $("p2-totals").innerHTML = `<thead><tr><th>Group</th><th class="num">Year</th><th class="num">Jurisdictions</th>
+    <th class="num">Safe harbour applies</th><th class="num">Estimated top-up tax</th></tr></thead><tbody>` +
+    d.pillar2_totals.map((t) => `<tr><td>${esc(t.group)}</td><td class="num">${t.year}</td><td class="num">${t.jurisdictions}</td>
+      <td class="num">${t.safe_harbour_applies}</td><td class="num">${money(t.estimated_topup_tax)}</td></tr>`).join("") + "</tbody>";
+  const mark = (v) => v === null ? '<span class="unk" title="needs payroll costs and tangible assets">?</span>' : v ? '<span class="ok">✓</span>' : '<span class="no">✗</span>';
+  $("p2").innerHTML = `<thead><tr>${multi ? "<th>Group</th>" : ""}<th>Jurisdiction</th><th class="num">Simplified ETR</th><th class="num">SBIE</th>
+    <th>De minimis</th><th>Simplified ETR</th><th>Routine profits</th><th>Safe harbour</th><th class="num">Est. top-up tax</th></tr></thead><tbody>` +
+    p2.map((r) => `<tr>${multi ? `<td>${esc(r.group)}</td>` : ""}<td>${esc(r.jurisdiction)}</td><td class="num">${pct(r.simplified_etr)}</td>
+      <td class="num">${money(r.sbie)}</td><td>${mark(r.test_de_minimis)}</td><td>${mark(r.test_simplified_etr)}</td>
+      <td>${mark(r.test_routine_profits)}</td><td>${esc(r.safe_harbour)}</td>
+      <td class="num">${money(r.estimated_topup_tax)}${r.estimate_is_upper_bound ? " ≤" : ""}</td></tr>`).join("") + "</tbody>";
+
+  const m = d.model;
+  $("method-model").innerHTML = m.training === "real"
+    ? `The classifier is trained on <b>real public country-by-country reports</b>: ${m.rows.toLocaleString("en-US")} jurisdiction rows from the EU Tax Observatory database, of which ${m.positive.toLocaleString("en-US")} are tax-haven affiliates. Group-wise cross-validated ROC AUC: <b>${m.cv_auc ? m.cv_auc.toFixed(2) : "0.73"}</b>.`
+    : `The classifier is trained on <b>synthetic demo data</b> (${m.rows.toLocaleString("en-US")} simulated entities). Switch to "Real public CbCRs" for the real-data model.`;
+}
+
+// ---- downloads ---------------------------------------------------------------
+let downloads = null;
+(async () => { try { if (window.claude && window.claude.use) downloads = await window.claude.use("downloads"); } catch (e) { downloads = null; } })();
+
+async function save(filename, text, type) {
+  try {
+    if (downloads) { await downloads.save({ filename, data: text }); return; }
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (e) {
+    showError("The download was not completed. Your browser or the viewer may have blocked it.");
+  }
+}
+$("dl-report").onclick = () => current && save("taxriskscan_report.html", current.report_html, "text/html");
+$("dl-summary").onclick = () => current && save("risk_summary.csv", current.summary_csv, "text/csv");
+$("dl-p2").onclick = () => current && save("pillar2_summary.csv", current.pillar2_csv, "text/csv");
+$("template").onclick = () => save("taxriskscan_template.csv",
+  "group,year,jurisdiction,revenue,profit_before_tax,tax_paid,tax_accrued,employees,tangible_assets,payroll_costs\n" +
+  "Example Group,2026,Germany,10000000,2000000,450000,480000,50,3000000,3600000\n" +
+  "Example Group,2026,Ireland,5000000,1000000,120000,125000,20,400000,2800000\n" +
+  "Example Group,2026,Bermuda,8000000,3000000,0,0,5,0,900000\n", "text/csv");
+
+// ---- Python engine -------------------------------------------------------------
+async function runAnalysis() {
+  if (!py) return;
+  showError("");
+  setStatus("Analysing…");
+  const training = $("training").value;
+  try {
+    if (training !== "real") setStatus("Training the model…");
+    py.globals.set("_args", py.toPy({ path: lastInput.path, year: Number($("year").value), training, auc: training === "real" ? SAMPLE_AUC : null }));
+    const out = await py.runPythonAsync("import bridge\nbridge.run(_args['path'], _args['year'], _args['training'], _args['auc'])");
+    render(JSON.parse(out));
+    $("source").innerHTML = `Showing: <b>${esc(lastInput.label)}</b>`;
+    setStatus("Ready", "ready");
+  } catch (e) {
+    const msg = String(e.message || e);
+    const last = msg.trim().split("\n").filter(Boolean).pop() || msg;
+    showError("Could not analyse this file. " + last.replace(/^[\w.]+Error: /, ""));
+    setStatus("Ready", "ready");
+  }
+}
+
+async function handleFile(file) {
+  if (!py || !file) return;
+  const ext = file.name.toLowerCase().endsWith(".xml") ? "xml" : "csv";
+  const path = `/tmp/upload.${ext}`;
+  py.FS.writeFile(path, new Uint8Array(await file.arrayBuffer()));
+  lastInput = { path, label: file.name };
+  await runAnalysis();
+}
+
+$("file").addEventListener("change", (e) => handleFile(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
+$("year").onchange = runAnalysis;
+$("training").onchange = runAnalysis;
+$("sample-csv").onclick = () => { lastInput = { path: "/app/sample_cbcr.csv", label: "bundled sample · three fictional multinational groups" }; runAnalysis(); };
+$("sample-xml").onclick = () => { lastInput = { path: "/app/sample_cbc.xml", label: "sample OECD CbC XML · Nordwind Electronics" }; runAnalysis(); };
+
+let researchData = null;
+function renderResearch(r) {
+  researchData = r;
+  const o = r.overview, v = r.validation;
+  $("r-kpis").innerHTML = [
+    [o.groups, `multinationals · ${o.reports} reports · ${o.years}`],
+    [pct(o.haven_share_profit), "of profit booked in tax havens"],
+    [pct(o.haven_share_employees), "of employees located in tax havens"],
+    [v.score_auc_out_of_sample.toFixed(2), "out-of-sample AUC of the risk score"],
+  ].map(([val, k]) => `<div class="kpi"><span class="v">${esc(val)}</span><span class="k">${esc(k)}</span></div>`).join("");
+  $("r-shares").src = r.figures.shares; $("r-etr").src = r.figures.etr; $("r-top").src = r.figures.top_havens;
+  $("r-note").textContent = `Out of sample, ${Math.round(v.high_share_havens * 100)}% of haven rows score High against ${Math.round(v.high_share_other * 100)}% of other rows. Public CbCRs are published voluntarily, so the sample changes from year to year; these are descriptive statistics.`;
+}
+$("dl-brief").onclick = () => researchData && save("taxriskscan_research_brief.html", researchData.brief_html, "text/html");
+
+async function boot() {
+  fetch("research.json").then((r) => r.json()).then(renderResearch).catch(() => { $("research").hidden = true; });
+  try {
+    const sample = await fetch("sample_result.json").then((r) => r.json());
+    render(sample);
+  } catch (e) { /* the engine will render once ready */ }
+  try {
+    setStatus("Loading the Python engine (first visit ≈ 20 s)…");
+    py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
+    await py.loadPackage(["numpy", "pandas", "scikit-learn", "matplotlib"]);
+    setStatus("Loading TaxRiskScan…");
+    const bundle = await fetch("bundle.json").then((r) => { if (!r.ok) throw new Error("bundle.json"); return r.json(); });
+    py.FS.mkdirTree("/app/taxriskscan/data");
+    for (const [f, text] of Object.entries(bundle)) py.FS.writeFile("/app/" + f, text);
+    setStatus("Training the model on real CbCR data…");
+    await py.runPythonAsync("import sys\nsys.path.insert(0, '/app')\nimport bridge\nbridge.get_models('real')");
+    ["file", "sample-csv", "sample-xml"].forEach((id) => { $(id).disabled = false; });
+    setStatus("Ready · upload your data", "ready");
+  } catch (e) {
+    setStatus("Engine failed to load", "error");
+    showError("The Python engine could not load in this browser, so uploads are unavailable. The sample results above are still accurate. Try a current Chrome, Edge, Firefox or Safari.");
+  }
+}
+boot();
+</script>
+</body>
+</html>

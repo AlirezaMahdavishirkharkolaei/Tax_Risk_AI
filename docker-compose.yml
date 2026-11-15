@@ -1,0 +1,14 @@
+# docker compose up -d   ->   http://localhost:8000/docs
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TAXRISKSCAN_API_KEYS: "${TAXRISKSCAN_API_KEYS:-change-me}"
+      # TAXRISKSCAN_TRAINING: synthetic          # commercial deployments: synthetic or your own data
+      # TAXRISKSCAN_CONFIG: /config/org.toml
+      # TAXRISKSCAN_MODEL: /config/model.joblib
+    # volumes:
+    #   - ./config:/config:ro
+    restart: unless-stopped
