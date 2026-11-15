@@ -179,6 +179,31 @@ def html_report(res: AnalysisResult, title: str = "TaxRiskScan report") -> str:
     cv = f"{res.models.cv_auc:.2f}" if res.models.cv_auc is not None else "n/a"
     p2 = _pillar2_html(res)
     m = res.models
+    w = res.config.weights
+    wt = (w.rules + w.classifier + w.clustering) or 1
+    wr, wc, wk = w.rules / wt, w.classifier / wt, w.clustering / wt
+    org = res.config.organisation
+    org_html = f"<p class=org>{e(org)}</p>" if org else ""
+    currency_html = (f" · amounts converted from {e(res.config.currency)} to EUR at {res.config.eur_rate:g}"
+                     if res.config.eur_rate != 1.0 else "")
+    quality_html = ""
+    if res.issues:
+        items = "".join(
+            f"<li class={i.level}><b>{'Warning' if i.level == 'warning' else 'Note'}:</b> {e(i.message)}"
+            + (f" <span class=note>(CSV rows {', '.join(map(str, i.rows))})</span>" if i.rows else "") + "</li>"
+            for i in res.issues
+        )
+        quality_html = f"<section class=quality><h2>Data quality</h2><ul>{items}</ul></section>"
+    audit = [
+        ("Tool version", res.metadata.get("version", "")),
+        ("Run at (UTC)", res.metadata.get("run_at", "")),
+        ("Input SHA-256", res.metadata.get("input_sha256", "") or "n/a"),
+        ("Configuration fingerprint", res.metadata.get("config_fingerprint", "")),
+        ("Model training data", f"{m.training_source} (SHA-256 {m.data_sha256[:16]}…)" if m.data_sha256 else m.training_source),
+        ("Model trained at (UTC)", m.trained_at),
+        ("Libraries", ", ".join(f"{k} {v}" for k, v in m.library_versions.items())),
+    ]
+    audit_rows = "".join(f"<tr><th>{e(k)}</th><td><code>{e(str(v))}</code></td></tr>" for k, v in audit)
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -200,18 +225,21 @@ th{{color:var(--t2);font-weight:600}} .num{{text-align:right;font-variant-numeri
 .lvl{{font-weight:600}} .lvl.high{{color:#b42f2f}} .lvl.medium{{color:#8a5d00}} .lvl.low{{color:#0a7d0a}}
 .finding{{border:1px solid var(--g);border-radius:10px;padding:14px 18px;margin:12px 0}}
 .finding ul{{margin:8px 0 0;padding-left:20px}} .law{{font-size:12.5px;color:var(--t2)}} .law a{{color:inherit}}
-.note{{font-size:12.5px;color:var(--t2)}} .pass{{color:#0a7d0a;font-weight:600}} .fail{{color:#b42f2f;font-weight:600}} .und{{color:#8a5d00;font-weight:600}}
+.note{{font-size:12.5px;color:var(--t2)}} .org{{color:var(--t2);font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:.04em;font-size:12.5px}}
+.quality{{border:1px solid #f0d58a;background:#fdf8ea;border-radius:10px;padding:4px 18px 10px;margin-top:16px}} .quality h2{{margin-top:12px}}
+.quality li{{margin:6px 0}} table.audit th{{width:220px}} table.audit td{{white-space:normal;word-break:break-all}} .pass{{color:#0a7d0a;font-weight:600}} .fail{{color:#b42f2f;font-weight:600}} .und{{color:#8a5d00;font-weight:600}}
 @media print{{.wrap{{overflow:visible}} th,td{{white-space:normal}} .finding{{break-inside:avoid}}}} .finding li{{margin:6px 0}} .rec{{color:var(--t2)}}
 </style></head><body><main>
-<h1>{e(title)}</h1>
+{org_html}<h1>{e(title)}</h1>
 <p class=sub>Generated {date.today().isoformat()} · {len(r)} entities in {r['group'].nunique()} group(s) ·
-EU Annex I list as of {jurisdictions.EU_ANNEX_I_AS_OF}</p>
+EU Annex I list as of {jurisdictions.EU_ANNEX_I_AS_OF}{currency_html}</p>
 <div class=tiles>
 <div class=tile><b>{counts['High']}</b>{LEVEL_ICONS['High']} High risk</div>
 <div class=tile><b>{counts['Medium']}</b>{LEVEL_ICONS['Medium']} Medium risk</div>
 <div class=tile><b>{counts['Low']}</b>{LEVEL_ICONS['Low']} Low risk</div>
 </div>
 <p class=disc>{e(DISCLAIMER)}</p>
+{quality_html}
 <img alt="Heatmap of risk indicators per jurisdiction" src="data:image/png;base64,{heat}">
 <img alt="Bar chart of risk score per jurisdiction" src="data:image/png;base64,{bars}">
 <h2>Summary table</h2>
@@ -223,13 +251,16 @@ EU Annex I list as of {jurisdictions.EU_ANNEX_I_AS_OF}</p>
 <h2>Findings, review steps and legal basis</h2>{findings_html}
 <h2>Pillar Two screening (fiscal year {res.fiscal_year})</h2>{p2}
 <h2>Method</h2>
-<p>Score = {res.config.weights.rules:.0%} rule-based indicators + {res.config.weights.classifier:.0%}
-logistic-regression probability + {res.config.weights.clustering:.0%} k-means anomaly score.
+<p>Score = {wr:.0%} rule-based indicators + {wc:.0%}
+logistic-regression probability + {wk:.0%} k-means anomaly score.
 Levels: High ≥ {res.config.levels.high:.0f}, Medium ≥ {res.config.levels.medium:.0f}.
 The classifier was trained on <code>{e(m.training_source)}</code> ({m.n_training:,} jurisdiction rows,
 {m.n_positive:,} positive). With the default real data (EU Tax Observatory Public CbCR database) it estimates how
 closely an entity's financial profile resembles multinationals' tax-haven affiliates; jurisdiction names and lists
-are not model inputs. Group-wise cross-validated ROC AUC: {cv}.</p>
+are not model inputs. Group-wise cross-validated ROC AUC: {cv}. Training data terms: {e(m.data_terms)}</p>
+<h2>Audit trail</h2>
+<div class=wrap><table class=audit><tbody>{audit_rows}</tbody></table></div>
+<p class=note>Re-running with the same input file, configuration fingerprint and model data hash reproduces these results.</p>
 </main></body></html>"""
 
 

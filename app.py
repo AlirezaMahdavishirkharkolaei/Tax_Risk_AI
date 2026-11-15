@@ -62,6 +62,9 @@ c3.metric(f"{LEVEL_ICONS['Low']} Low risk", counts["Low"])
 c4.metric("Safe harbour applies", f"{int((p2['safe_harbour'] == 'Applies').sum())} / {len(p2)}")
 c5.metric("Est. top-up tax", f"{p2['estimated_topup_tax'].sum():,.0f}")
 st.caption(DISCLAIMER)
+for issue in res.issues:
+    rows = f" (CSV rows {', '.join(map(str, issue.rows))})" if issue.rows else ""
+    (st.warning if issue.level == "warning" else st.info)(issue.message + rows)
 
 tab_heat, tab_table, tab_findings, tab_p2, tab_method = st.tabs(
     ["Heatmap", "Summary table", "Findings & legal basis", "Pillar Two", "Method & data"]

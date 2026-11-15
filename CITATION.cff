@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use TaxRiskScan in research, please cite it as below, and cite the data sources listed in DATA_SOURCES.md."
+title: "TaxRiskScan: profit-shifting and Pillar Two screening for country-by-country reporting data"
+abstract: >-
+  Open-source tool that screens Country-by-Country Reporting (CbCR) data for low taxation,
+  profit shifting and Pillar Two exposure. It combines a rule engine linked to EU and OECD
+  legal sources, a logistic-regression classifier trained on public CbCRs (EU Tax Observatory)
+  and k-means anomaly detection, with Transitional CbCR Safe Harbour tests and a
+  dataset-level research mode.
+type: software
+authors:
+  - family-names: "Mahdavi Shirkharkolaei"
+    given-names: "Alireza"
+version: 3.0.0
+date-released: 2026-11-15
+license: MIT
+repository-code: "https://github.com/AlirezaMahdavishirkharkolaei/Tax_Risk_AI"
+keywords:
+  - international taxation
+  - profit shifting
+  - country-by-country reporting
+  - Pillar Two
+  - global minimum tax
+  - tax havens
+  - legal technology
+  - machine learning
+references:
+  - type: dataset
+    title: "Public Country-by-Country Reports: a new database"
+    authors:
+      - family-names: Aliprandi
+        given-names: Giulia
+      - family-names: Borders
+        given-names: Kane
+      - family-names: Gabriel
+        given-names: Francisco
+      - family-names: von Zedlitz
+        given-names: Gerrit
+    institution:
+      name: "EU Tax Observatory"
+    year: 2022

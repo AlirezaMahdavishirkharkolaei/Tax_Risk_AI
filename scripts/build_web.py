@@ -54,6 +54,18 @@ def main() -> None:
     (DIST / "sample_result.json").write_text(
         bridge.run(str(ROOT / "data" / "sample_cbcr.csv"), 2026, "real", auc)
     )
+    # Research brief on the public CbCR data, pre-computed (it needs cross-validation).
+    from taxriskscan import research
+
+    rr = research.run()
+    (DIST / "research.json").write_text(json.dumps({
+        "overview": rr.overview,
+        "validation": rr.validation,
+        "by_year": rr.by_year.to_dict("records"),
+        "top_havens": rr.top_havens.head(10).to_dict("records"),
+        "figures": {k: "data:image/png;base64," + v for k, v in rr.figures.items()},
+        "brief_html": research.brief_html(rr),
+    }), encoding="utf-8")
     html = (WEB / "index.html").read_text(encoding="utf-8")
     html = html.replace("null; /*CV_AUC*/", f"{auc}; /*CV_AUC*/")
     (DIST / "index.html").write_text(html, encoding="utf-8")

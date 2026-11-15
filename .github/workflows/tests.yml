@@ -15,3 +15,14 @@ jobs:
       - run: pytest -q
       - run: taxriskscan analyze data/sample_cbcr.csv --out results
       - run: taxriskscan analyze data/sample_cbc.xml --out results-xml
+      - run: taxriskscan research --out research
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t taxriskscan .
+      - run: |
+          docker run -d --name trs -p 8000:8000 -e TAXRISKSCAN_API_KEYS=ci-key taxriskscan
+          for i in $(seq 1 30); do curl -fs localhost:8000/health && break; sleep 3; done
+          curl -fs -H "X-API-Key: ci-key" -F file=@data/sample_cbc.xml localhost:8000/analyze | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['counts']['High'] >= 1; print(d['counts'])"
+          docker logs trs | tail -5

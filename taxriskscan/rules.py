@@ -29,7 +29,7 @@ def _fmt_money(x: float) -> str:
     return f"{x:,.0f}"
 
 
-def evaluate_row(row: pd.Series, t: Thresholds) -> list[Flag]:
+def evaluate_row(row: pd.Series, t: Thresholds, watchlist: frozenset[str] = frozenset()) -> list[Flag]:
     flags: list[Flag] = []
     profit = row["profit_before_tax"]
     etr = row["etr"]
@@ -104,6 +104,12 @@ def evaluate_row(row: pd.Series, t: Thresholds) -> list[Flag]:
             "Check EU defensive measures (e.g. CFC, withholding, non-deductibility) and DAC6 "
             "reporting obligations.",
         ))
+    if watchlist and str(row["jurisdiction"]).casefold() in watchlist:
+        flags.append(Flag(
+            "WATCHLIST", 2,
+            "Jurisdiction is on your organisation's watchlist.",
+            "Apply the review procedure your organisation defines for watchlisted jurisdictions.",
+        ))
     if row["zero_cit_jurisdiction"]:
         flags.append(Flag(
             "ZERO_CIT", 1,
@@ -113,9 +119,12 @@ def evaluate_row(row: pd.Series, t: Thresholds) -> list[Flag]:
     return flags
 
 
-def evaluate(ind: pd.DataFrame, t: Thresholds) -> pd.DataFrame:
+def evaluate(ind: pd.DataFrame, t: Thresholds, watchlist=()) -> pd.DataFrame:
     """Return rule points (0-MAX_POINTS), normalised score and flag details per row."""
-    all_flags = [evaluate_row(row, t) for _, row in ind.iterrows()]
+    from .jurisdictions import normalise
+
+    wl = frozenset(normalise(j).casefold() for j in watchlist)
+    all_flags = [evaluate_row(row, t, wl) for _, row in ind.iterrows()]
     points = [min(sum(f.points for f in flags), MAX_POINTS) for flags in all_flags]
     return pd.DataFrame(
         {

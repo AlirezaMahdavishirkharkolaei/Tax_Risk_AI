@@ -78,6 +78,7 @@ LEGAL_BASIS: dict[str, list[Source]] = {
         _s(DAC6, "Annex IV, hallmark C.1(b)(ii)"),
         _s(PUBLIC_CBCR, "new Art. 48c of Directive 2013/34/EU (separate disclosure for listed jurisdictions)"),
     ],
+    "WATCHLIST": [Source("Organisation watchlist", "configured under [lists] watchlist")],
     "ZERO_CIT": [
         _s(DAC6, "Annex IV, hallmark C.1(b)(i) (zero or almost-zero corporate tax)"),
         _s(PILLAR2_DIR, "Art. 11 (qualified domestic top-up tax)"),

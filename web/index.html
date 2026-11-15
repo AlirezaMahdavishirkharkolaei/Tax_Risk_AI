@@ -79,7 +79,13 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .source { font-size: 13px; color: var(--muted); }
 .source b { color: var(--ink); font-weight: 600; }
 .msg { font-size: 14px; padding: 10px 14px; border-radius: 8px; background: var(--high-soft); color: var(--high); }
-.msg[hidden] { display: none; }
+.msg[hidden], .quality[hidden] { display: none; }
+.quality { border: 1px solid var(--med); background: var(--med-soft); border-radius: 10px; padding: 12px 16px; font-size: 14px; }
+.quality ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.kpi { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.kpi .v { font: 600 24px var(--mono); }
+.kpi .k { font-size: 13px; color: var(--muted); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
   border-left: 4px solid var(--line); display: grid; gap: 2px; }
@@ -89,6 +95,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .tile.low { border-left-color: var(--low); } .tile.acc { border-left-color: var(--accent); }
 .charts { display: grid; grid-template-columns: 1fr; gap: 16px; }
 .plate img { max-width: 980px; margin: 0 auto; }
+.r-charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
 .plate { background: var(--plate); border-radius: 10px; padding: 8px; }
 .plate img { display: block; width: 100%; height: auto; }
 .wrap { overflow-x: auto; }
@@ -151,6 +158,7 @@ th.num { font-family: var(--body); }
   </section>
   <p class="source" id="source">Showing: <b>bundled sample</b> · three fictional multinational groups, fiscal year 2026</p>
   <p class="msg" id="error" hidden></p>
+  <section class="quality" id="quality" hidden aria-label="Data quality"></section>
 
   <section class="tiles" id="tiles" aria-label="Summary"></section>
 
@@ -179,6 +187,18 @@ th.num { font-family: var(--body); }
     <div class="wrap"><table id="p2-totals"></table></div>
     <div class="wrap"><table id="p2"></table></div>
     <p class="note">Transitional CbCR Safe Harbour: de minimis (revenue &lt; €10m and profit &lt; €1m), simplified ETR (≥ 15% for 2023–24, 16% for 2025, 17% for 2026–27), routine profits (profit ≤ substance-based income exclusion). Estimated top-up = (15% − ETR) × (profit − SBIE). ? = needs payroll costs and tangible assets; ≤ = upper bound. A screening estimate from CbCR figures, not a GloBE computation. Amounts assumed in EUR.</p>
+  </section>
+
+  <section class="panel stack" id="research" aria-label="Research">
+    <div class="section-head"><h2>Research: profit shifting in public CbCRs</h2><button id="dl-brief">Download research brief</button></div>
+    <p class="sub">What the training data itself shows: country-by-country reports published by multinationals, collected by the EU Tax Observatory.</p>
+    <div class="kpis" id="r-kpis"></div>
+    <div class="charts r-charts">
+      <div class="plate"><img id="r-shares" alt="Share of profit, employees and tax booked in tax havens by year"></div>
+      <div class="plate"><img id="r-etr" alt="Effective tax rates in tax havens and other jurisdictions by year"></div>
+      <div class="plate"><img id="r-top" alt="Tax havens attracting the most profit"></div>
+    </div>
+    <p class="note" id="r-note"></p>
   </section>
 
   <section class="panel method">
@@ -226,6 +246,9 @@ function render(d) {
     ["acc", money(topup), "Estimated top-up tax"],
   ].map(([c, v, k]) => `<div class="tile ${c}"><span class="v">${esc(v)}</span><span class="k">${esc(k)}</span></div>`).join("");
 
+  const q = d.issues || [];
+  $("quality").hidden = !q.length;
+  $("quality").innerHTML = q.length ? `<b>Data quality</b><ul>${q.map((i) => `<li>${i.level === "warning" ? "<b>Warning:</b> " : ""}${esc(i.message)}${i.rows && i.rows.length ? ` <span class="note">(CSV rows ${i.rows.join(", ")})</span>` : ""}</li>`).join("")}</ul>` : "";
   $("heatmap").src = d.heatmap;
   $("scores").src = d.scores;
 
@@ -333,7 +356,23 @@ $("training").onchange = runAnalysis;
 $("sample-csv").onclick = () => { lastInput = { path: "/app/sample_cbcr.csv", label: "bundled sample · three fictional multinational groups" }; runAnalysis(); };
 $("sample-xml").onclick = () => { lastInput = { path: "/app/sample_cbc.xml", label: "sample OECD CbC XML · Nordwind Electronics" }; runAnalysis(); };
 
+let researchData = null;
+function renderResearch(r) {
+  researchData = r;
+  const o = r.overview, v = r.validation;
+  $("r-kpis").innerHTML = [
+    [o.groups, `multinationals · ${o.reports} reports · ${o.years}`],
+    [pct(o.haven_share_profit), "of profit booked in tax havens"],
+    [pct(o.haven_share_employees), "of employees located in tax havens"],
+    [v.score_auc_out_of_sample.toFixed(2), "out-of-sample AUC of the risk score"],
+  ].map(([val, k]) => `<div class="kpi"><span class="v">${esc(val)}</span><span class="k">${esc(k)}</span></div>`).join("");
+  $("r-shares").src = r.figures.shares; $("r-etr").src = r.figures.etr; $("r-top").src = r.figures.top_havens;
+  $("r-note").textContent = `Out of sample, ${Math.round(v.high_share_havens * 100)}% of haven rows score High against ${Math.round(v.high_share_other * 100)}% of other rows. Public CbCRs are published voluntarily, so the sample changes from year to year; these are descriptive statistics.`;
+}
+$("dl-brief").onclick = () => researchData && save("taxriskscan_research_brief.html", researchData.brief_html, "text/html");
+
 async function boot() {
+  fetch("research.json").then((r) => r.json()).then(renderResearch).catch(() => { $("research").hidden = true; });
   try {
     const sample = await fetch("sample_result.json").then((r) => r.json());
     render(sample);

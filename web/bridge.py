@@ -101,6 +101,8 @@ def run(path: str, fiscal_year: int = 2026, training: str = "real", cv_auc: floa
         "summary_csv": res.summary().to_csv(index=False),
         "pillar2_csv": res.pillar2.to_csv(index=False),
         "groups": int(r["group"].nunique()),
+        "issues": [i.to_dict() for i in res.issues],
+        "metadata": res.metadata,
     }
     return json.dumps(out)
 

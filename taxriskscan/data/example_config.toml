@@ -1,0 +1,35 @@
+# TaxRiskScan configuration - copy, edit, and pass with:  taxriskscan analyze data.csv --config my.toml   (print this file: taxriskscan config)
+# Every key is optional; omitted keys keep their defaults.
+
+[organisation]
+name = "Example Tax Authority - Risk Assessment Unit"   # shown on reports
+
+[data]
+currency = "USD"        # currency of the amounts in your files
+eur_rate = 0.92         # 1 USD = 0.92 EUR; amounts are converted to EUR before scoring
+
+[thresholds]
+globe_minimum_rate = 0.15
+very_low_etr = 0.10
+high_profit_per_employee = 100000       # EUR
+very_high_profit_per_employee = 300000  # EUR
+profit_activity_mismatch = 0.10
+strong_profit_activity_mismatch = 0.25
+very_high_margin = 0.50
+
+[weights]               # blend of the three signals (normalised automatically)
+rules = 0.5
+classifier = 0.3
+clustering = 0.2
+
+[levels]                # score cut-offs (0-100)
+medium = 35
+high = 60
+
+[lists]
+# Extra jurisdictions your organisation wants flagged (e.g. a national blacklist).
+watchlist = ["Seychelles", "Panama"]
+
+[model]
+n_clusters = 3
+random_state = 42

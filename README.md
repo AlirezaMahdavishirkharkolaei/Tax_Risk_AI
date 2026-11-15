@@ -16,6 +16,18 @@ Every flag comes with a plain-language reason, a recommended review step and the
 
 *Started as a project for the Building AI course (Reaktor & University of Helsinki), now a working tool.*
 
+## Who it is for
+
+| | How TaxRiskScan helps |
+|---|---|
+| **Tax administrations** | Rank CbC reports received under DAC4 / BEPS Action 13 for audit selection, with the legal basis attached to every flag |
+| **Audit and advisory firms** | Pre-screen clients' Pillar Two exposure and Transitional CbCR Safe Harbour position |
+| **Corporate tax teams** | Run the same tests on the group's own CbCR before filing or before public CbCR disclosure |
+| **Universities** | Teach international tax with real data: research mode, a browser app that needs no installation, and documented methods |
+| **Researchers and NGOs** | Reproducible, citable analysis of public CbCRs (`taxriskscan research`, CITATION.cff, data hashes) |
+
+Documentation: [Methodology](docs/methodology.md) · [Organisation guide](docs/for-organisations.md) · [Model card](MODEL_CARD.md) · [Data sources](DATA_SOURCES.md) · [Changelog](CHANGELOG.md)
+
 ![Risk heatmap](docs/heatmap.png)
 
 > **Risk indicators, not legal conclusions.** A high score means "look closer", not "non-compliant". Low effective tax rates and high profits can have legitimate explanations, such as loss relief, incentives, timing differences or genuine returns on IP. Every flag needs human review.
@@ -32,7 +44,12 @@ Every flag comes with a plain-language reason, a recommended review step and the
 | **Benchmarks** | Each jurisdiction's aggregate ETR from OECD CbCR statistics, as context |
 | **Inputs** | CSV, or **OECD CbC XML** (schema v2.0) |
 | **Outputs** | Heatmap, score chart, summary CSV, Pillar Two CSV, and a self-contained HTML audit report (print to PDF) |
-| **Interfaces** | Command line, a Streamlit dashboard, and a browser-only web app (Pyodide) |
+| **Interfaces** | Command line (batch, JSON), REST API with Docker, Streamlit dashboard, and a browser-only web app (Pyodide) |
+| **Organisation settings** | TOML configuration: thresholds, weights, risk levels, currency conversion, own watchlist |
+| **Data quality** | Warnings for aggregate rows, unknown jurisdictions, tax above profit, duplicates and missing fields |
+| **Audit trail** | Input SHA-256, configuration fingerprint, model-data hash and library versions in every report |
+| **Own models** | Train on your own audit outcomes, then save and reuse the model with its model card |
+| **Research mode** | Haven shares of profit, employees and tax by year; ETRs; leading havens; sectors; Pillar Two exposure; out-of-sample validation |
 
 ## Quick start
 
@@ -43,9 +60,12 @@ pip install -e ".[app,dev]"        # or: pip install -r requirements.txt
 
 taxriskscan analyze data/sample_cbcr.csv --out results/   # CSV
 taxriskscan analyze data/sample_cbc.xml --out results/    # OECD CbC XML
-taxriskscan train                                         # model diagnostics
+taxriskscan analyze filings/*.csv --config org.toml --json # batch, organisation settings, JSON output
+taxriskscan train cases.csv --save model.joblib           # your own labelled cases
+taxriskscan research --out research/                      # research brief on public CbCRs
+taxriskscan serve                                         # REST API at http://127.0.0.1:8000/docs
 streamlit run app.py                                      # web dashboard
-pytest                                                    # 30 tests
+pytest                                                    # 48 tests
 ```
 
 `python Tax_Risk_AI.py` still works. It analyses the bundled sample and writes the report to `results/`.
@@ -60,6 +80,15 @@ python -m http.server -d web/dist 8000   # open http://localhost:8000
 ```
 
 To publish it on **GitHub Pages**, go to *Settings → Pages → Source: GitHub Actions*. The `pages.yml` workflow then deploys it on every push to `main`, at `https://alirezamahdavishirkharkolaei.github.io/Tax_Risk_AI/`.
+
+### REST API and Docker (self-hosted)
+
+```bash
+docker compose up -d                                      # http://localhost:8000/docs
+curl -H "X-API-Key: change-me" -F file=@data/sample_cbc.xml http://localhost:8000/analyze
+```
+
+Endpoints include `/analyze` (CSV or XML upload), `/analyze/json`, `/report` (HTML), `/pillar2` and `/model`. Configuration is done with environment variables. See the [organisation guide](docs/for-organisations.md).
 
 ### Deploy the Streamlit dashboard (free)
 
@@ -121,6 +150,34 @@ This is a screening estimate from CbCR figures, not a full GloBE computation. If
 
 ![Risk scores](docs/risk_scores.png)
 
+## Research mode
+
+```bash
+taxriskscan research --out research/
+```
+
+This analyses the bundled public CbCR data, or any CSV with a `label` column, and writes a research brief with CSV tables and charts. On the bundled data (96 multinationals, 237 reports):
+
+| | |
+|---|---|
+| Profit booked in tax havens | 10.7% (vs. 5.1% of employees) |
+| Profit-weighted ETR | 6–11% in havens vs. 21–30% elsewhere, every year |
+| Leading havens by profit booked | Netherlands, Singapore, Switzerland, Luxembourg, Belgium |
+| Risk score out of sample | ROC AUC 0.71; 11% of haven rows score *High* vs. 2% of other rows |
+
+Public CbCRs are published voluntarily, so the sample is selective and changes over time. These are descriptive statistics, not estimates of revenue loss.
+
+## Licensing and editions
+
+The **code is MIT** and free for any use. The **bundled real-data model** follows the EU Tax Observatory's terms: non-commercial use with citation.
+
+* **Commercial deployments:** set `TAXRISKSCAN_TRAINING=synthetic` or train on your own cases.
+* Details are in the [organisation guide](docs/for-organisations.md#licensing-pick-the-right-model).
+
+## Citation
+
+If you use TaxRiskScan in research, cite it via [CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button), and cite the data sources listed in [DATA_SOURCES.md](DATA_SOURCES.md).
+
 ## Methods
 
 | method | role | where |
@@ -144,10 +201,14 @@ taxriskscan/
   pillar2.py        Transitional CbCR Safe Harbour + top-up estimate
   benchmarks.py     OECD 2016 jurisdiction benchmarks
   cbcxml.py         OECD CbC XML import
-  pipeline.py       puts it all together
+  pipeline.py       puts it all together (+ JSON export, audit metadata)
+  quality.py        data-quality checks
+  research.py       dataset-level research mode
+  api.py            REST API (FastAPI)
+  config.py         defaults + TOML configuration
   report.py         heatmap, charts, HTML report
   jurisdictions.py  EU Annex I and zero-tax lists
-  data/             real training data, OECD benchmarks, synthetic data
+  data/             real training data, OECD benchmarks, synthetic data, example_config.toml
 app.py              Streamlit dashboard
 web/                browser web app (Pyodide) + bridge
 scripts/            rebuild real data, generate synthetic data
@@ -169,6 +230,8 @@ tests/              pytest suite
 * QDMTT / IIR / UTPR allocation of the top-up tax
 * AI-written executive summary of the audit report
 * Automatic updates of the EU list
+* Multi-year trend view per group
+* Zenodo DOI for each release
 
 ## Acknowledgments
 
