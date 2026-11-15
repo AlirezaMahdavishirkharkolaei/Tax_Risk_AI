@@ -1,48 +1,17 @@
-# TaxRiskScan: simple anomaly detector for tax compliance
+"""Backward-compatible entry point.
 
-import numpy as np
+The original single-file prototype has grown into the ``taxriskscan`` package.
+Running this file analyses the bundled sample dataset and writes the report to
+``results/``. For your own data use:
 
-def anomaly_score(turnover, profit, tax_paid, employees):
-    """
-    A simple heuristic anomaly score:
-    - Very low effective tax rate increases risk
-    - Very high profit per employee increases risk
-    - Negative profits combined with zero tax increases risk
-    """
-    if employees == 0:
-        employees = 1
+    python -m taxriskscan analyze path/to/data.csv --out results/
+"""
 
-    etr = tax_paid / max(profit, 1)  # effective tax rate
-    profit_per_employee = profit / employees
+import sys
+from pathlib import Path
 
-    score = 0
+from taxriskscan.cli import main
 
-    # Low effective tax rate
-    if etr < 0.10:
-        score += 2
-    elif etr < 0.15:
-        score += 1
-
-    # Unusual productivity
-    if profit_per_employee > 300000:
-        score += 2
-    elif profit_per_employee > 100000:
-        score += 1
-
-    # Loss-making but no tax paid
-    if profit < 0 and tax_paid == 0:
-        score += 1
-
-    return score, etr, profit_per_employee
-
-
-# Example dataset
-example = [
-    ("Ireland", 5000000, 1000000, 120000, 20),
-    ("Bermuda", 8000000, 3000000, 0, 5),
-    ("Germany", 10000000, 2000000, 450000, 50),
-]
-
-for country, turnover, profit, tax_paid, emps in example:
-    score, etr, ppe = anomaly_score(turnover, profit, tax_paid, emps)
-    print(f"{country}: Risk={score}, ETR={etr:.2f}, Profit/Employee={ppe:.0f}")
+if __name__ == "__main__":
+    sample = Path(__file__).parent / "data" / "sample_cbcr.csv"
+    sys.exit(main(["analyze", str(sample), "--out", "results"]))
