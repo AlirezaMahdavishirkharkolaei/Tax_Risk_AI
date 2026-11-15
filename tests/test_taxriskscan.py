@@ -16,7 +16,12 @@ SAMPLE = ROOT / "data" / "sample_cbcr.csv"
 
 @pytest.fixture(scope="module")
 def models():
-    return model.train()
+    return model.train()  # real public CbCR data
+
+
+@pytest.fixture(scope="module")
+def synthetic_models():
+    return model.train("synthetic")
 
 
 def frame(rows, group="G"):
@@ -92,13 +97,34 @@ def test_panama_removed_in_october_2026():
 
 # --- models -------------------------------------------------------------------
 
-def test_classifier_quality_on_fresh_synthetic_data(models):
+def test_synthetic_classifier_generalises(synthetic_models):
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
     from generate_synthetic_data import simulate
 
-    assert models.cv_auc > 0.9
-    assert model.evaluate_on(models, simulate(40, seed=123)) > 0.85
+    assert synthetic_models.cv_auc > 0.9
+    assert model.evaluate_on(synthetic_models, simulate(40, seed=123)) > 0.85
+
+
+def test_real_training_data_and_model(models):
+    df = pd.read_csv(model.default_training_path())
+    assert len(df) > 4000 and df["group"].nunique() > 80
+    assert 0.1 < df["label"].mean() < 0.25
+    # Honest, group-wise cross-validated performance on real data (label noise is substantial).
+    assert 0.68 < models.cv_auc < 0.85
+    assert models.training_source == "training_public_cbcr.csv"
+
+
+def test_jurisdiction_lists_are_not_model_inputs():
+    from taxriskscan.metrics import FEATURES
+    assert not any("cit" in f or "annex" in f or "cooperative" in f for f in FEATURES)
+
+
+def test_explanations_point_to_low_tax_for_a_shell(models):
+    ind = frame([("Germany", 5e8, 2e7, 5e6, 2000), ("Somewhere", 9e7, 6e7, 0, 3)])
+    from taxriskscan.metrics import feature_matrix
+    contrib = models.explain(feature_matrix(ind)).loc[1]
+    assert contrib.sum() > 0.3 and contrib["low_tax_gap"] > 0
 
 
 def test_typical_entity_is_not_anomalous(models):
@@ -127,10 +153,11 @@ def test_sample_ranking(models):
 
 def test_cli_writes_report(tmp_path, capsys):
     assert main(["analyze", str(SAMPLE), "--out", str(tmp_path)]) == 0
-    for name in ("risk_summary.csv", "risk_heatmap.png", "risk_scores.png", "report.html"):
+    for name in ("risk_summary.csv", "risk_heatmap.png", "risk_scores.png", "pillar2_summary.csv", "report.html"):
         assert (tmp_path / name).stat().st_size > 0
     html = (tmp_path / "report.html").read_text()
     assert "Findings" in html and "Cayman Islands" in html
+    assert "Pillar Two screening" in html and "eur-lex.europa.eu" in html
     assert "High:" in capsys.readouterr().out
 
 
@@ -139,3 +166,89 @@ def test_cli_reports_bad_input(tmp_path, capsys):
     bad.write_text("foo,bar\n1,2\n")
     assert main(["analyze", str(bad), "--out", str(tmp_path)]) == 2
     assert "Missing required column" in capsys.readouterr().err
+
+
+# --- Pillar Two -----------------------------------------------------------------
+
+from taxriskscan import pillar2  # noqa: E402
+
+
+def _p2(rows, year=2026):
+    cols = ["jurisdiction", "revenue", "profit_before_tax", "tax_paid", "employees", "tangible_assets", "payroll_costs"]
+    df = pd.DataFrame(rows, columns=cols)
+    df["group"], df["year"] = "G", year
+    return pillar2.assess(load_dataset(df)).set_index("jurisdiction")
+
+
+def test_transition_and_sbie_rates():
+    assert pillar2.transition_rate(2024) == 0.15
+    assert pillar2.transition_rate(2025) == 0.16
+    assert pillar2.transition_rate(2026) == pillar2.transition_rate(2027) == 0.17
+    assert pillar2.transition_rate(2028) is None
+    assert pillar2.sbie_rates(2023) == (0.098, 0.078)
+    assert pillar2.sbie_rates(2026) == (0.092, 0.072)
+    assert pillar2.sbie_rates(2040) == (0.05, 0.05)
+
+
+def test_safe_harbour_tests():
+    r = _p2([
+        ("Small", 9e6, 9e5, 0, 5, 0, 0),                 # de minimis
+        ("HighTax", 1e9, 1e8, 2.5e7, 900, 1e8, 6e7),     # simplified ETR 25% >= 17%
+        ("Loss", 1e8, -5e6, 0, 100, 1e7, 5e6),           # routine profits (loss)
+        ("Hub", 2e8, 1e8, 2e6, 4, 1e5, 4e5),             # fails all
+    ])
+    assert r.loc["Small", "test_de_minimis"] and r.loc["Small", "safe_harbour"] == "Applies"
+    assert r.loc["HighTax", "test_simplified_etr"] and r.loc["HighTax", "estimated_topup_tax"] == 0
+    assert r.loc["Loss", "test_routine_profits"] and r.loc["Loss", "safe_harbour"] == "Applies"
+    hub = r.loc["Hub"]
+    assert hub["safe_harbour"] == "Fails"
+    sbie = 0.092 * 4e5 + 0.072 * 1e5
+    assert hub["estimated_topup_tax"] == pytest.approx((0.15 - 0.02) * (1e8 - sbie))
+
+
+def test_missing_payroll_gives_undetermined_upper_bound():
+    df = pd.DataFrame([("G", "Hub", 2e8, 1e8, 2e6, 4, 1e5)],
+                      columns=["group", "jurisdiction", "revenue", "profit_before_tax", "tax_paid", "employees", "tangible_assets"])
+    r = pillar2.assess(load_dataset(df), fiscal_year=2026).iloc[0]
+    assert r["test_routine_profits"] is None and r["safe_harbour"] == "Undetermined"
+    assert r["estimate_is_upper_bound"]
+
+
+def test_jurisdictional_blending():
+    r = _p2([("X", 1e8, 1e7, 0, 10, 0, 0), ("X", 1e8, 1e7, 4e6, 10, 0, 0)])
+    assert r.loc["X", "entities"] == 2 and r.loc["X", "simplified_etr"] == pytest.approx(0.2)
+
+
+# --- legal basis, benchmarks, XML ----------------------------------------------------
+
+def test_every_rule_has_a_legal_basis():
+    from taxriskscan import legal, rules
+    import inspect
+    codes = set(__import__("re").findall(r'"([A-Z_]{5,})", \d', inspect.getsource(rules)))
+    assert codes and all(legal.basis_for(c) for c in codes)
+    assert all(s.url.startswith("https://") for c in codes for s in legal.basis_for(c) if s.url)
+
+
+def test_oecd_benchmarks():
+    from taxriskscan import benchmarks
+    b = benchmarks.lookup(pd.Series(["Germany", "Bermuda", "Korea", "Atlantis"]))
+    assert 0.15 < b.loc[0, "oecd_etr_2016"] < 0.30
+    assert b.loc[1, "oecd_etr_2016"] < 0.05 and b.loc[1, "oecd_profit_employee_ratio_2016"] > 50
+    assert not math.isnan(b.loc[2, "oecd_etr_2016"]) and math.isnan(b.loc[3, "oecd_etr_2016"])
+
+
+def test_cbc_xml_import(models):
+    from taxriskscan.cbcxml import read_cbc_xml
+    df = read_cbc_xml(ROOT / "data" / "sample_cbc.xml")
+    assert set(df["jurisdiction"]) == {"Germany", "Ireland", "Bermuda", "Poland"}
+    assert df["year"].iloc[0] == 2026 and df["group"].iloc[0] == "Nordwind Electronics"
+    res = analyze(ROOT / "data" / "sample_cbc.xml", models=models)
+    assert res.results.set_index("jurisdiction").loc["Bermuda", "risk_level"] == "High"
+
+
+def test_cbc_xml_rejects_entities(tmp_path):
+    from taxriskscan.cbcxml import read_cbc_xml
+    bad = tmp_path / "x.xml"
+    bad.write_text('<?xml version="1.0"?><!DOCTYPE a [<!ENTITY x "y">]><a>&x;</a>')
+    with pytest.raises(DataError):
+        read_cbc_xml(bad)

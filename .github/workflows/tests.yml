@@ -14,3 +14,4 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest -q
       - run: taxriskscan analyze data/sample_cbcr.csv --out results
+      - run: taxriskscan analyze data/sample_cbc.xml --out results-xml

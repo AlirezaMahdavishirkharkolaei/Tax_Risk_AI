@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "taxriskscan"
-version = "1.0.0"
-description = "Flag jurisdictions with tax-avoidance and profit-shifting risk in Country-by-Country Reporting data."
+version = "2.0.0"
+description = "Tax-avoidance, profit-shifting and Pillar Two screening for Country-by-Country Reporting data."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

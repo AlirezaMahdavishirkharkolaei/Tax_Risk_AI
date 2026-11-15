@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fictional example in the OECD CbC XML Schema v2.0 layout (Table 1 only). -->
+<cbc:CBC_OECD xmlns:cbc="urn:oecd:ties:cbc:v2" xmlns:stf="urn:oecd:ties:cbcstf:v5" version="2.0">
+  <cbc:MessageSpec>
+    <cbc:SendingEntityIN>DE123456789</cbc:SendingEntityIN>
+    <cbc:TransmittingCountry>DE</cbc:TransmittingCountry>
+    <cbc:ReceivingCountry>DE</cbc:ReceivingCountry>
+    <cbc:MessageType>CBC</cbc:MessageType>
+    <cbc:MessageRefId>DE2026-NORDWIND-0001</cbc:MessageRefId>
+    <cbc:MessageTypeIndic>CBC401</cbc:MessageTypeIndic>
+    <cbc:ReportingPeriod>2026-12-31</cbc:ReportingPeriod>
+    <cbc:Timestamp>2027-11-30T10:00:00</cbc:Timestamp>
+  </cbc:MessageSpec>
+  <cbc:CbcBody>
+    <cbc:ReportingEntity>
+      <cbc:Entity><cbc:ResCountryCode>DE</cbc:ResCountryCode><cbc:Name>Nordwind Electronics</cbc:Name></cbc:Entity>
+      <cbc:ReportingRole>CBC701</cbc:ReportingRole>
+    </cbc:ReportingEntity>
+    <cbc:CbcReports>
+      <cbc:ResCountryCode>DE</cbc:ResCountryCode>
+      <cbc:Summary>
+        <cbc:Revenues><cbc:Unrelated currCode="EUR">400000000</cbc:Unrelated><cbc:Related currCode="EUR">20000000</cbc:Related><cbc:Total currCode="EUR">420000000</cbc:Total></cbc:Revenues>
+        <cbc:ProfitOrLoss currCode="EUR">18500000</cbc:ProfitOrLoss>
+        <cbc:TaxPaid currCode="EUR">5400000</cbc:TaxPaid>
+        <cbc:TaxAccrued currCode="EUR">5550000</cbc:TaxAccrued>
+        <cbc:Capital currCode="EUR">50000000</cbc:Capital>
+        <cbc:Earnings currCode="EUR">90000000</cbc:Earnings>
+        <cbc:NbEmployees>1850</cbc:NbEmployees>
+        <cbc:Assets currCode="EUR">160000000</cbc:Assets>
+      </cbc:Summary>
+    </cbc:CbcReports>
+    <cbc:CbcReports>
+      <cbc:ResCountryCode>IE</cbc:ResCountryCode>
+      <cbc:Summary>
+        <cbc:Revenues><cbc:Unrelated currCode="EUR">40000000</cbc:Unrelated><cbc:Related currCode="EUR">200000000</cbc:Related><cbc:Total currCode="EUR">240000000</cbc:Total></cbc:Revenues>
+        <cbc:ProfitOrLoss currCode="EUR">96000000</cbc:ProfitOrLoss>
+        <cbc:TaxPaid currCode="EUR">7800000</cbc:TaxPaid>
+        <cbc:TaxAccrued currCode="EUR">8100000</cbc:TaxAccrued>
+        <cbc:Capital currCode="EUR">1000000</cbc:Capital>
+        <cbc:Earnings currCode="EUR">310000000</cbc:Earnings>
+        <cbc:NbEmployees>35</cbc:NbEmployees>
+        <cbc:Assets currCode="EUR">4000000</cbc:Assets>
+      </cbc:Summary>
+    </cbc:CbcReports>
+    <cbc:CbcReports>
+      <cbc:ResCountryCode>BM</cbc:ResCountryCode>
+      <cbc:Summary>
+        <cbc:Revenues><cbc:Unrelated currCode="EUR">0</cbc:Unrelated><cbc:Related currCode="EUR">88000000</cbc:Related><cbc:Total currCode="EUR">88000000</cbc:Total></cbc:Revenues>
+        <cbc:ProfitOrLoss currCode="EUR">61000000</cbc:ProfitOrLoss>
+        <cbc:TaxPaid currCode="EUR">0</cbc:TaxPaid>
+        <cbc:TaxAccrued currCode="EUR">0</cbc:TaxAccrued>
+        <cbc:Capital currCode="EUR">10000</cbc:Capital>
+        <cbc:Earnings currCode="EUR">420000000</cbc:Earnings>
+        <cbc:NbEmployees>3</cbc:NbEmployees>
+        <cbc:Assets currCode="EUR">200000</cbc:Assets>
+      </cbc:Summary>
+    </cbc:CbcReports>
+    <cbc:CbcReports>
+      <cbc:ResCountryCode>PL</cbc:ResCountryCode>
+      <cbc:Summary>
+        <cbc:Revenues><cbc:Unrelated currCode="EUR">90000000</cbc:Unrelated><cbc:Related currCode="EUR">6000000</cbc:Related><cbc:Total currCode="EUR">96000000</cbc:Total></cbc:Revenues>
+        <cbc:ProfitOrLoss currCode="EUR">4100000</cbc:ProfitOrLoss>
+        <cbc:TaxPaid currCode="EUR">770000</cbc:TaxPaid>
+        <cbc:TaxAccrued currCode="EUR">790000</cbc:TaxAccrued>
+        <cbc:Capital currCode="EUR">5000000</cbc:Capital>
+        <cbc:Earnings currCode="EUR">12000000</cbc:Earnings>
+        <cbc:NbEmployees>1240</cbc:NbEmployees>
+        <cbc:Assets currCode="EUR">38000000</cbc:Assets>
+      </cbc:Summary>
+    </cbc:CbcReports>
+  </cbc:CbcBody>
+</cbc:CBC_OECD>

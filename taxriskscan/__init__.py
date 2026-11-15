@@ -5,4 +5,4 @@ from .metrics import DataError, load_dataset
 from .pipeline import DISCLAIMER, AnalysisResult, analyze
 
 __all__ = ["Config", "DEFAULT_CONFIG", "DataError", "load_dataset", "analyze", "AnalysisResult", "DISCLAIMER"]
-__version__ = "1.0.0"
+__version__ = "2.0.0"

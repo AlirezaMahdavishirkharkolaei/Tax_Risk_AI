@@ -16,7 +16,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 
-from . import jurisdictions  # noqa: E402
+from . import jurisdictions, legal  # noqa: E402
+from .pillar2 import group_totals  # noqa: E402
 from .pipeline import DISCLAIMER, AnalysisResult  # noqa: E402
 
 SURFACE = "#fcfcfb"
@@ -41,7 +42,10 @@ HEATMAP_COLUMNS = {
 
 
 def _label(row: pd.Series) -> str:
-    return row["jurisdiction"] if row["group"] == "Group" else f"{row['jurisdiction']}  ·  {row['group']}"
+    label = row["jurisdiction"] if row["group"] == "Group" else f"{row['jurisdiction']}  ·  {row['group']}"
+    if "year" in row.index and not pd.isna(row["year"]):
+        label += f" {int(row['year'])}"
+    return label
 
 
 def heatmap_frame(res: AnalysisResult) -> pd.DataFrame:
@@ -152,7 +156,8 @@ def html_report(res: AnalysisResult, title: str = "TaxRiskScan report") -> str:
             f"<tr><td>{e(x['group'])}</td><td>{e(x['jurisdiction'])}</td>"
             f"<td class=num>{x['risk_score']:.0f}</td>"
             f"<td><span class='lvl {lvl.lower()}'>{LEVEL_ICONS[lvl]} {lvl}</span></td>"
-            f"<td class=num>{_pct(x['etr'])}</td><td class=num>{_money(x['profit_per_employee'])}</td>"
+            f"<td class=num>{_pct(x['etr'])}</td><td class=num>{_pct(x['oecd_etr_2016'])}</td>"
+            f"<td class=num>{_money(x['profit_per_employee'])}</td>"
             f"<td class=num>{_pct(x['profit_share'])}</td><td class=num>{_pct(x['activity_share'])}</td>"
             f"<td class=num>{x['ml_probability']:.2f}</td><td class=num>{x['anomaly_score']:.2f}</td></tr>"
         )
@@ -160,17 +165,20 @@ def html_report(res: AnalysisResult, title: str = "TaxRiskScan report") -> str:
     findings = []
     for _, x in r[r["risk_level"] != "Low"].iterrows():
         items = "".join(
-            f"<li><b>{e(reason)}</b><br><span class=rec>→ {e(rec)}</span></li>"
-            for reason, rec in zip(x["reasons"], x["recommendations"])
+            f"<li><b>{e(reason)}</b><br><span class=rec>→ {e(rec)}</span>{_legal_html(code)}</li>"
+            for code, reason, rec in zip(x["flags"], x["reasons"], x["recommendations"])
         ) or "<li>No individual rule fired; the score comes from the ML signals. Review manually.</li>"
         findings.append(
             f"<section class=finding><h3>{e(x['jurisdiction'])} <small>{e(x['group'])} · score "
             f"{x['risk_score']:.0f} · {x['risk_level']}</small></h3>"
-            f"<p class=meta>ML probability {x['ml_probability']:.2f} · anomaly {x['anomaly_score']:.2f}</p>"
+            f"<p class=meta>ML probability {x['ml_probability']:.2f} · anomaly {x['anomaly_score']:.2f}"
+            + (f" · model drivers: {e(x['ml_drivers'])}" if x['ml_drivers'] else "") + "</p>"
             f"<ul>{items}</ul></section>"
         )
     findings_html = "".join(findings) or "<p>No medium or high-risk jurisdictions found.</p>"
     cv = f"{res.models.cv_auc:.2f}" if res.models.cv_auc is not None else "n/a"
+    p2 = _pillar2_html(res)
+    m = res.models
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -186,12 +194,14 @@ small,.meta,.sub{{color:var(--t2);font-weight:400}}
 .tile b{{display:block;font-size:26px}}
 .disc{{border-left:3px solid var(--g);padding:8px 14px;color:var(--t2);font-size:13.5px}}
 img{{max-width:100%;height:auto}}
-.wrap{{overflow-x:auto}} table{{border-collapse:collapse;width:100%;font-size:13.5px}}
+.wrap{{overflow-x:auto;margin-bottom:18px}} table{{border-collapse:collapse;width:100%;font-size:13.5px}}
 th,td{{padding:7px 9px;border-bottom:1px solid var(--g);text-align:left;white-space:nowrap}}
 th{{color:var(--t2);font-weight:600}} .num{{text-align:right;font-variant-numeric:tabular-nums}}
 .lvl{{font-weight:600}} .lvl.high{{color:#b42f2f}} .lvl.medium{{color:#8a5d00}} .lvl.low{{color:#0a7d0a}}
 .finding{{border:1px solid var(--g);border-radius:10px;padding:14px 18px;margin:12px 0}}
-.finding ul{{margin:8px 0 0;padding-left:20px}} .finding li{{margin:6px 0}} .rec{{color:var(--t2)}}
+.finding ul{{margin:8px 0 0;padding-left:20px}} .law{{font-size:12.5px;color:var(--t2)}} .law a{{color:inherit}}
+.note{{font-size:12.5px;color:var(--t2)}} .pass{{color:#0a7d0a;font-weight:600}} .fail{{color:#b42f2f;font-weight:600}} .und{{color:#8a5d00;font-weight:600}}
+@media print{{.wrap{{overflow:visible}} th,td{{white-space:normal}} .finding{{break-inside:avoid}}}} .finding li{{margin:6px 0}} .rec{{color:var(--t2)}}
 </style></head><body><main>
 <h1>{e(title)}</h1>
 <p class=sub>Generated {date.today().isoformat()} · {len(r)} entities in {r['group'].nunique()} group(s) ·
@@ -206,17 +216,64 @@ EU Annex I list as of {jurisdictions.EU_ANNEX_I_AS_OF}</p>
 <img alt="Bar chart of risk score per jurisdiction" src="data:image/png;base64,{bars}">
 <h2>Summary table</h2>
 <div class=wrap><table><thead><tr><th>Group</th><th>Jurisdiction</th><th class=num>Score</th><th>Level</th>
-<th class=num>ETR</th><th class=num>Profit / employee</th><th class=num>Profit share</th>
+<th class=num>ETR</th><th class=num>OECD ETR 2016*</th><th class=num>Profit / employee</th><th class=num>Profit share</th>
 <th class=num>Activity share</th><th class=num>ML prob.</th><th class=num>Anomaly</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
-<h2>Findings and recommended review steps</h2>{findings_html}
+<p class=note>* Aggregate ETR of profitable multinationals in that jurisdiction, OECD CbCR statistics 2016 - context, not a test.</p>
+<h2>Findings, review steps and legal basis</h2>{findings_html}
+<h2>Pillar Two screening (fiscal year {res.fiscal_year})</h2>{p2}
 <h2>Method</h2>
 <p>Score = {res.config.weights.rules:.0%} rule-based indicators + {res.config.weights.classifier:.0%}
 logistic-regression probability + {res.config.weights.clustering:.0%} k-means anomaly score.
 Levels: High ≥ {res.config.levels.high:.0f}, Medium ≥ {res.config.levels.medium:.0f}.
-Classifier cross-validated ROC AUC on its training data: {cv}
-(synthetic reference data unless you trained on your own).</p>
+The classifier was trained on <code>{e(m.training_source)}</code> ({m.n_training:,} jurisdiction rows,
+{m.n_positive:,} positive). With the default real data (EU Tax Observatory Public CbCR database) it estimates how
+closely an entity's financial profile resembles multinationals' tax-haven affiliates; jurisdiction names and lists
+are not model inputs. Group-wise cross-validated ROC AUC: {cv}.</p>
 </main></body></html>"""
+
+
+def _legal_html(code: str) -> str:
+    srcs = legal.basis_for(code)
+    if not srcs:
+        return ""
+    parts = []
+    for src in srcs:
+        label = html.escape(src.label())
+        parts.append(f'<a href="{html.escape(src.url)}">{label}</a>' if src.url else label)
+    return "<br><span class=law>§ " + " · ".join(parts) + "</span>"
+
+
+def _test(v) -> str:
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "<span class=und>?</span>"
+    return "<span class=pass>✓</span>" if v else "<span class=fail>✗</span>"
+
+
+def _pillar2_html(res: AnalysisResult) -> str:
+    p = res.pillar2
+    e = html.escape
+    totals = group_totals(p)
+    t_rows = "".join(
+        f"<tr><td>{e(r['group'])}</td><td class=num>{r['year']}</td><td class=num>{r['jurisdictions']}</td>"
+        f"<td class=num>{r['safe_harbour_applies']}</td><td class=num>{_money(r['estimated_topup_tax'])}</td></tr>"
+        for _, r in totals.iterrows()
+    )
+    rows = "".join(
+        f"<tr><td>{e(r['group'])}</td><td>{e(r['jurisdiction'])}</td><td class=num>{_pct(r['simplified_etr'])}</td>"
+        f"<td class=num>{_money(r['sbie'])}</td><td>{_test(r['test_de_minimis'])}</td><td>{_test(r['test_simplified_etr'])}</td>"
+        f"<td>{_test(r['test_routine_profits'])}</td><td>{e(r['safe_harbour'])}</td>"
+        f"<td class=num>{_money(r['estimated_topup_tax'])}{' ≤' if r['estimate_is_upper_bound'] else ''}</td></tr>"
+        for _, r in p.sort_values("estimated_topup_tax", ascending=False).iterrows()
+    )
+    return f"""<div class=wrap><table><thead><tr><th>Group</th><th class=num>Year</th><th class=num>Jurisdictions</th>
+<th class=num>Safe harbour applies</th><th class=num>Estimated top-up tax</th></tr></thead><tbody>{t_rows}</tbody></table></div>
+<div class=wrap><table><thead><tr><th>Group</th><th>Jurisdiction</th><th class=num>Simplified ETR</th><th class=num>SBIE</th>
+<th>De minimis</th><th>Simplified ETR</th><th>Routine profits</th><th>Transitional CbCR safe harbour</th>
+<th class=num>Est. top-up tax</th></tr></thead><tbody>{rows}</tbody></table></div>
+<p class=note>Tests of the Transitional CbCR Safe Harbour (OECD, Dec. 2022, extended in Jan. 2026). Top-up = (15% − ETR) ×
+(profit − SBIE), jurisdictionally blended. ? = needs payroll costs / tangible assets; ≤ = upper bound because payroll is
+missing. Screening estimate from CbCR figures, not a GloBE computation; amounts assumed in EUR.</p>"""
 
 
 def write_outputs(res: AnalysisResult, out_dir: str | Path, title: str = "TaxRiskScan report") -> dict[str, Path]:
@@ -226,9 +283,11 @@ def write_outputs(res: AnalysisResult, out_dir: str | Path, title: str = "TaxRis
         "summary": out / "risk_summary.csv",
         "heatmap": out / "risk_heatmap.png",
         "scores": out / "risk_scores.png",
+        "pillar2": out / "pillar2_summary.csv",
         "report": out / "report.html",
     }
     res.summary().to_csv(paths["summary"], index=False)
+    res.pillar2.to_csv(paths["pillar2"], index=False)
     plt.close(plot_heatmap(res, paths["heatmap"]))
     plt.close(plot_scores(res, paths["scores"]))
     paths["report"].write_text(html_report(res, title), encoding="utf-8")
