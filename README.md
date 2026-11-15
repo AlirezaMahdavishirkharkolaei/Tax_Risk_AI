@@ -32,7 +32,7 @@ Every flag comes with a plain-language reason, a recommended review step and the
 | **Benchmarks** | Each jurisdiction's aggregate ETR from OECD CbCR statistics, as context |
 | **Inputs** | CSV, or **OECD CbC XML** (schema v2.0) |
 | **Outputs** | Heatmap, score chart, summary CSV, Pillar Two CSV, and a self-contained HTML audit report (print to PDF) |
-| **Interfaces** | Command line and a Streamlit web dashboard |
+| **Interfaces** | Command line, a Streamlit dashboard, and a browser-only web app (Pyodide) |
 
 ## Quick start
 
@@ -50,7 +50,18 @@ pytest                                                    # 30 tests
 
 `python Tax_Risk_AI.py` still works. It analyses the bundled sample and writes the report to `results/`.
 
-### Deploy the dashboard (free)
+### Web app (runs in the browser)
+
+`web/` holds a static version of TaxRiskScan that runs the real Python package in the browser with [Pyodide](https://pyodide.org). There is no server, and uploaded files never leave the user's machine.
+
+```bash
+python scripts/build_web.py              # builds web/dist/
+python -m http.server -d web/dist 8000   # open http://localhost:8000
+```
+
+To publish it on **GitHub Pages**, go to *Settings → Pages → Source: GitHub Actions*. The `pages.yml` workflow then deploys it on every push to `main`, at `https://alirezamahdavishirkharkolaei.github.io/Tax_Risk_AI/`.
+
+### Deploy the Streamlit dashboard (free)
 
 1. Push the repository to GitHub.
 2. On [share.streamlit.io](https://share.streamlit.io), choose **New app**, select this repository, and set the main file to `app.py`.
@@ -138,6 +149,7 @@ taxriskscan/
   jurisdictions.py  EU Annex I and zero-tax lists
   data/             real training data, OECD benchmarks, synthetic data
 app.py              Streamlit dashboard
+web/                browser web app (Pyodide) + bridge
 scripts/            rebuild real data, generate synthetic data
 tests/              pytest suite
 ```

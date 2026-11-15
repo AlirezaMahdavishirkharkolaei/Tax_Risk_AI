@@ -152,13 +152,16 @@ def _prepare(training, config: Config):
     return df, X, y.astype(int), name
 
 
-def train(training=None, config: Config = DEFAULT_CONFIG) -> RiskModels:
-    """Fit both models. ``training``: None/'real', 'synthetic', a CSV path or a DataFrame with ``label``."""
+def train(training=None, config: Config = DEFAULT_CONFIG, cross_validate: bool = True) -> RiskModels:
+    """Fit both models. ``training``: None/'real', 'synthetic', a CSV path or a DataFrame with ``label``.
+
+    ``cross_validate=False`` skips the group-wise CV estimate (faster, e.g. in the browser).
+    """
     df, X, y, name = _prepare(training, config)
     names = list(metrics.FEATURES)
 
     cv_auc = None
-    if min(np.bincount(y)) >= 5 and df["group"].nunique() >= 5:
+    if cross_validate and min(np.bincount(y)) >= 5 and df["group"].nunique() >= 5:
         # Split by multinational so one group never sits in both train and test folds.
         cv = GroupKFold(n_splits=5)
         cv_auc = float(cross_val_score(_classifier(), X[names], y, groups=df["group"], cv=cv, scoring="roc_auc").mean())
