@@ -235,6 +235,7 @@ tests/              pytest suite
 
 ## Acknowledgments
 
+* **Mohammad Amir Modami** collaborated on the legal analysis and research behind this project.
 * Building AI course by Reaktor & University of Helsinki
 * EU Tax Observatory (Public CbCR database) and Data For Good
 * OECD Corporate Tax Statistics
